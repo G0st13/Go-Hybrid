@@ -301,7 +301,7 @@ impl<'a> Checker<'a> {
                     // the type argument; defaults Unknown (fail-closed at
                     // boundaries, O4.9). See the TECH DEBT note in foreign.rs.
                     "make" => self.make_shape(args),
-                    "append" => args
+                    "append" | "some" => args
                         .first()
                         .map(|a| self.shape_of_expr(st, &a.value))
                         .unwrap_or(TypeShape::Unknown),

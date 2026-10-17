@@ -274,12 +274,31 @@ impl FnState {
                 inner_root_moves.push((root, mv));
             }
         }
+        let popped_scope = self.scopes.last().cloned().unwrap_or_default();
         for a in self.may_share.keys() {
             if let Some(mv) = self.env_lookup(a).and_then(|b| b.moved.clone()) {
                 for peer in self.share_group(a) {
                     let root = crate::freeze::resolve_alias(self, &peer);
-                    inner_root_moves.push((peer, mv.clone()));
-                    inner_root_moves.push((root, mv.clone()));
+                    if !popped_scope.contains_key(&peer) {
+                        inner_root_moves.push((peer, mv.clone()));
+                    }
+                    if !popped_scope.contains_key(&root) {
+                        inner_root_moves.push((root, mv.clone()));
+                    }
+                }
+            }
+        }
+        // Preserve may-share relationships established inside the block between
+        // outer bindings that were NOT shadowed in `popped_scope` (#238: e.g.
+        // `if true { copy(dst, src) }` or `if true { tmp := src; copy(dst, tmp) }`).
+        let mut inner_outer_shares: Vec<(String, String)> = Vec::new();
+        for a in self.may_share.keys() {
+            if popped_scope.contains_key(a) {
+                continue;
+            }
+            for b in self.share_group(a) {
+                if !popped_scope.contains_key(&b) {
+                    inner_outer_shares.push((a.clone(), b));
                 }
             }
         }
@@ -288,11 +307,21 @@ impl FnState {
             self.aliases = outer_aliases;
             if let Some(outer_share) = self.share_scopes.pop() {
                 self.may_share = outer_share;
+                for (a, b) in inner_outer_shares {
+                    self.share_edge(&a, &b);
+                }
             }
             for (root, mv) in inner_root_moves {
                 if let Some(br) = self.env_lookup_mut(&root) {
                     if br.moved.is_none() {
-                        br.moved = Some(mv);
+                        br.moved = Some(mv.clone());
+                    }
+                }
+                for peer in self.share_group(&root) {
+                    if let Some(bp) = self.env_lookup_mut(&peer) {
+                        if bp.moved.is_none() {
+                            bp.moved = Some(mv.clone());
+                        }
                     }
                 }
             }

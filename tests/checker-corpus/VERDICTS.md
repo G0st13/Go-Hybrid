@@ -592,26 +592,6 @@ composite-`const` locals, select-receive names and match bindings stay
 outside this registration (the same Go error family, tracked separately);
 unread `for ... in` bindings are handled at emission (issue #139).
 
-<<<<<<< HEAD
-## Additive corpus registration — 2026-10-17: shadowed predeclared types (#326)
-
-One case derived from issue #326 before running this fixture. It pins the
-soundness rule that user-defined structs or type aliases shadowing predeclared
-primitive names (e.g. `struct rune { m map[string]string }`) must resolve to the
-user struct rather than falling through to primitive type shape. When passed
-across tasks, non-sendable contents (such as maps or slices) must be rejected
-with `HYB-E3001` (A1c sendability).
-
-| # | program | verdict | rule | diagnostic | rationale |
-|---|---------|---------|------|------------|-----------|
-| 52 | 52-shadow-predeclared-struct-reject | REJECT | A1c | `HYB-E3001` | `struct rune { m map[string]string }` passed across tasks must reject because the shadowed struct contains a mutable map |
-
-With this addition the registered corpus is **51 programs:
-ACCEPT 13 · ACCEPT-MANAGED 2 · REJECT 36** (harness recompute: 51/51
-verdict agreement; tripwire 2/51 = 3.9% verdict-level, 3/51 = 5.9%
-as-written — not fired).
-
-=======
 ## Additive corpus registration — 2026-10-17: 3-argument slice `make` (#353)
 
 One case added WITH its fix: `make([]T, len, cap)` is valid Go, was
@@ -626,44 +606,42 @@ remaining rejection.
 |---|---------|---------|------|------------|-----------|
 | 51 | 51-make-slice-cap | ACCEPT | — | — | `make([]int, 3, 10)` is valid Go; zero check-sites, a fresh local |
 
-With this addition the corpus on disk is **51 programs: ACCEPT 13 ·
-ACCEPT-MANAGED 2 · REJECT 36** (recomputed from the files'
+With this addition the corpus on disk stood at **51 programs:
+ACCEPT 13 · ACCEPT-MANAGED 2 · REJECT 36** (recomputed from the files'
 `EXPECTED-VERDICT` markers; #50 carries its registration with its own fix
-PR).
->>>>>>> main
+PR; the registration below raises the total to 52).
 
+## Additive corpus registration — 2026-10-17: shadowed predeclared types (#326)
 
-## Additive corpus registration — 2026-10-17: deferred calls keep their arguments live (#415)
+One case derived from issue #326 before running this fixture. It pins the
+soundness rule that user-defined structs or type aliases shadowing predeclared
+primitive names (e.g. `struct rune { m map[string]string }`) must resolve to the
+user struct rather than falling through to primitive type shape. When passed
+across tasks, non-sendable contents (such as maps or slices) must be rejected
+with `HYB-E3001` (A1c sendability).
+
+| # | program | verdict | rule | diagnostic | rationale |
+|---|---------|---------|------|------------|-----------|
+| 52 | 52-shadow-predeclared-struct-reject | REJECT | A1c | `HYB-E3001` | `struct rune { m map[string]string }` passed across tasks must reject because the shadowed struct contains a mutable map |
+
+With this addition the registered corpus is **52 programs:
+ACCEPT 13 · ACCEPT-MANAGED 2 · REJECT 37** (harness recompute: 52/52
+verdict agreement; tripwire 2/52 = 3.8% verdict-level, 3/52 = 5.8%
+as-written — not fired).
+
+## Additive corpus registration — 2026-10-17: deferred calls keep their arguments live (#415, #438)
 
 `defer` evaluates its arguments at the defer site but **calls at function
 exit**. The statement walk saw the argument as an ordinary read at the defer
-statement, so a later `move` of the same binding looked legal — and the deferred
-call then read the value the spawned task already owned.
+statement, so a later transfer of the same binding looked legal — and the
+deferred call then read the value the spawned task already owned. The capture
+is a VALUE, not a name, so a rebind must hand it to the bindings that still
+hold the storage (#438).
 
 | # | program | verdict | rule | diagnostic | rationale |
 |---|---------|---------|------|------------|-----------|
-| 54 | 54-defer-live-reference-at-spawn | REJECT | A1b | `HYB-E3003` | `defer report(shared)` followed by `task worker(move shared)`: the deferred read happens after the transfer |
-| 55 | 55-defer-live-reference-at-send | REJECT | A1b | `HYB-E3003` | the send-side twin of 54: `ch <- move shared` transfers ownership, and the deferred call reads the map at function exit |
-
-With this addition the corpus on disk is **54 programs: ACCEPT 13 ·
-ACCEPT-MANAGED 2 · REJECT 39** (recomputed by running every file through
-`hyb check --json`). #54/#55 are numbered to avoid colliding with the #53 slot
-claimed by the block-scope fix in a parallel PR.
-| 56 | 56-defer-live-reference-via-alias | REJECT | A1b | `HYB-E3003` | the deferred call names the ALIAS while the move transfers the ORIGIN — the check must key on the alias / may-share component, not the moved name |
-
-
-## Additive corpus registration — 2026-10-17: rebinding must not forget a deferred capture (#438)
-
-`defer report(shared)` captures the map `shared` holds at the defer statement.
-Rebinding the NAME does not change what was captured, and another live binding
-(`alias`) still holds it — so moving `alias` still races the deferred read.
-This is a REGRESSION case: the program rejected on `8dd0002` and was accepted
-on `c53978b`.
-
-| # | program | verdict | rule | diagnostic | rationale |
-|---|---------|---------|------|------------|-----------|
-| 59 | 59-rebind-forgets-defer-capture | REJECT | A1b | `HYB-E3003` | `defer report(shared)` + rebind + `task worker(move alias)` |
+| 54 | 54-defer-live-reference-at-spawn | REJECT | A1b | `HYB-E3003` | `defer report(shared)` then `task worker(move shared)` |
+| 55 | 55-defer-live-reference-at-send | REJECT | A1b | `HYB-E3003` | the send twin: `ch <- move shared` |
+| 56 | 56-defer-live-reference-via-alias | REJECT | A1b | `HYB-E3003` | the deferred call names the ALIAS, the move transfers the ORIGIN |
+| 59 | 59-rebind-forgets-defer-capture | REJECT | A1b | `HYB-E3003` | rebinding the name must not forget the captured storage |
 | 60 | 60-rebind-without-defer-control | ACCEPT | — | — | the over-rejection guard: a rebind with no defer and no boundary |
-
-With this addition the corpus on disk is **57 programs** (recomputed by running
-every file through `hyb check --json`).
