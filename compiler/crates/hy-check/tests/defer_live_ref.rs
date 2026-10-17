@@ -104,6 +104,49 @@ fn deferred_alias_guards_the_moved_origin_e3003_issue_415() {
 }
 
 #[test]
+fn rebind_does_not_forget_the_captured_storage_e3003_issue_438() {
+    // #438: `defer report(shared)` captured the map `shared` held THEN.
+    // Rebinding the name moves the name on, not the value — `alias` still
+    // holds it, so moving `alias` races the deferred read.
+    let r = check(
+        "fn report(m map[string]int) int {\n\
+           return m[\"task\"]\n\
+         }\n\
+         fn worker(m map[string]int) {\n\
+           m[\"task\"]++\n\
+         }\n\
+         fn main() {\n\
+           shared := map[string]int{}\n\
+           alias := shared\n\
+           defer report(shared)\n\
+           shared = map[string]int{}\n\
+           task worker(move alias)\n\
+         }",
+    );
+    assert_eq!(r.verdict, Verdict::Reject, "{:?}", r.diagnostics);
+    assert!(
+        r.diagnostics.iter().any(|d| d.code == "HYB-E3003"),
+        "expected HYB-E3003, got {:?}",
+        r.diagnostics
+    );
+}
+
+#[test]
+fn plain_rebind_without_defer_stays_accept_issue_438() {
+    // Control: rebinding on its own is ordinary code.
+    let r = check(
+        "fn main() {\n\
+           shared := map[string]int{}\n\
+           alias := shared\n\
+           shared = map[string]int{}\n\
+           alias[\"main\"]++\n\
+           fmt.println(\"{len(shared)}\")\n\
+         }",
+    );
+    assert_eq!(r.verdict, Verdict::Accept, "{:?}", r.diagnostics);
+}
+
+#[test]
 fn deferred_argument_moved_into_channel_rejects_e3003_issue_415() {
     // The send-side twin: `ch <- move shared` transfers ownership, and the
     // deferred call still reads the map at function exit.

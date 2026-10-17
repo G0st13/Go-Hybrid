@@ -650,3 +650,20 @@ ACCEPT-MANAGED 2 · REJECT 39** (recomputed by running every file through
 `hyb check --json`). #54/#55 are numbered to avoid colliding with the #53 slot
 claimed by the block-scope fix in a parallel PR.
 | 56 | 56-defer-live-reference-via-alias | REJECT | A1b | `HYB-E3003` | the deferred call names the ALIAS while the move transfers the ORIGIN — the check must key on the alias / may-share component, not the moved name |
+
+
+## Additive corpus registration — 2026-10-17: rebinding must not forget a deferred capture (#438)
+
+`defer report(shared)` captures the map `shared` holds at the defer statement.
+Rebinding the NAME does not change what was captured, and another live binding
+(`alias`) still holds it — so moving `alias` still races the deferred read.
+This is a REGRESSION case: the program rejected on `8dd0002` and was accepted
+on `c53978b`.
+
+| # | program | verdict | rule | diagnostic | rationale |
+|---|---------|---------|------|------------|-----------|
+| 59 | 59-rebind-forgets-defer-capture | REJECT | A1b | `HYB-E3003` | `defer report(shared)` + rebind + `task worker(move alias)` |
+| 60 | 60-rebind-without-defer-control | ACCEPT | — | — | the over-rejection guard: a rebind with no defer and no boundary |
+
+With this addition the corpus on disk is **57 programs** (recomputed by running
+every file through `hyb check --json`).
