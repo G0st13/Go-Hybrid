@@ -118,6 +118,7 @@ direction: a primitive-element slice copies by value and shares nothing.
 | 43 | 43-copy-ref-element-alias-freeze | REJECT | A1b | `copy(dst, src)` on a `[]map[...]` makes `dst[i]` and `src[i]` the same map; `task worker(move dst, done)` did not freeze `src`, so the later write through `src` was use-after-move (issue #178; the root cause is a missing `copy` arm in `process_call`, plus `make([]T, n)` dropping its element shape) |
 | 44 | 44-copy-primitive-element-control | ACCEPT | — | the FALSE-POSITIVE GUARD for 43: `copy(dst, src)` on `[]int` copies by value and shares no GC storage, so no may-share edge may be recorded |
 | 45 | 45-composite-literal-embeds-shared-map | REJECT | A1c | O4.6 deep sendability: a fresh `[]T{shared}` composite literal embedding a live shared map at a spawn is not laundered by the wrap (PR #176, maintainer-integrated as #45) |
+| 53 | 53-array-slice-backing-freeze | REJECT | A1b | slicing an addressable array (`s := a[:]` on `[4]int`, also `b.data[:]`, `append(a[0:1], x)`, overlapping windows) shares the array's backing storage even when the element is a primitive; `shape_may_share` only recurses into reference elements, so `move s` froze `s` and not `a`, `hyb check` reported 0 diagnostics, and `go run -race` reported `WARNING: DATA RACE` on `s[0]` vs `a[0]`. A value copy (`b := a`) and `clone(a)[:]` stay unlinked |
 
 **Distribution: ACCEPT 13 · ACCEPT-MANAGED 2 · REJECT 34 — 49 programs.**
 
@@ -629,19 +630,28 @@ ACCEPT 13 · ACCEPT-MANAGED 2 · REJECT 37** (harness recompute: 52/52
 verdict agreement; tripwire 2/52 = 3.8% verdict-level, 3/52 = 5.8%
 as-written — not fired).
 
+## Additive corpus registration — 2026-10-17: field store materializes may_share (#392)
+
+`h.m = shared` never created the edge from the composite to the live RHS root,
+so `move h` froze `h` but not `shared` and the emitted Go raced.
+
+| # | program | verdict | rule | diagnostic | rationale |
+|---|---------|---------|------|------------|-----------|
+| 54 | 54-field-store-alias-at-spawn | REJECT | A1b | `HYB-E3003` | `var h holder; h.m = shared` then `task worker(move h)` then a write to `shared` |
+| 55 | 55-field-store-fresh-at-spawn | ACCEPT | — | — | the over-rejection guard: a FRESH map literal stored into the field shares nothing |
 ## Additive corpus registration — 2026-10-17: deferred calls keep their arguments live (#415, #438)
 
 `defer` evaluates its arguments at the defer site but **calls at function
 exit**. The statement walk saw the argument as an ordinary read at the defer
-statement, so a later transfer of the same binding looked legal — and the
-deferred call then read the value the spawned task already owned. The capture
-is a VALUE, not a name, so a rebind must hand it to the bindings that still
-hold the storage (#438).
+statement, so a later transfer of the same binding looked legal — the deferred
+call then read the value the spawned task already owned. The capture is a
+VALUE, not a name, so a rebind must hand it to the bindings that still hold the
+storage (#438).
 
 | # | program | verdict | rule | diagnostic | rationale |
 |---|---------|---------|------|------------|-----------|
-| 54 | 54-defer-live-reference-at-spawn | REJECT | A1b | `HYB-E3003` | `defer report(shared)` then `task worker(move shared)` |
-| 55 | 55-defer-live-reference-at-send | REJECT | A1b | `HYB-E3003` | the send twin: `ch <- move shared` |
-| 56 | 56-defer-live-reference-via-alias | REJECT | A1b | `HYB-E3003` | the deferred call names the ALIAS, the move transfers the ORIGIN |
+| 56 | 56-defer-live-reference-at-spawn | REJECT | A1b | `HYB-E3003` | `defer report(shared)` then `task worker(move shared)` |
+| 57 | 57-defer-live-reference-at-send | REJECT | A1b | `HYB-E3003` | the send twin: `ch <- move shared` |
+| 58 | 58-defer-live-reference-via-alias | REJECT | A1b | `HYB-E3003` | the deferred call names the ALIAS, the move transfers the ORIGIN |
 | 59 | 59-rebind-forgets-defer-capture | REJECT | A1b | `HYB-E3003` | rebinding the name must not forget the captured storage |
 | 60 | 60-rebind-without-defer-control | ACCEPT | — | — | the over-rejection guard: a rebind with no defer and no boundary |
