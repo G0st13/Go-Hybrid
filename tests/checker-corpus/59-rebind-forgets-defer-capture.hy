@@ -21,7 +21,7 @@
 //   [S2] the deferred `report(shared)` — a read of it at function exit.
 //
 // ---- Expected verdict ----
-// EXPECTED-VERDICT: REJECT
+// EXPECTED-VERDICT: REJECT A1b
 //   REJECT — A1b/HYB-E3003. Accepting this is a P0: the emitted Go keeps
 //   `defer report(shared)` and `go worker(alias)` and they race
 //   (`fatal error: concurrent map read and map write`, reproduced 5/5).

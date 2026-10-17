@@ -17,7 +17,7 @@
 //   [S2] the deferred `report(shared)` — a use AFTER that transfer.
 //
 // ---- Expected verdict ----
-// EXPECTED-VERDICT: REJECT
+// EXPECTED-VERDICT: REJECT A1b
 //   REJECT — A1b/HYB-E3003 ("moved into a channel while a live `defer` still
 //   reads it"). The emitted Go keeps `defer report(shared)` and sends the map
 //   to a consumer; the deferred read races the consumer's writes.

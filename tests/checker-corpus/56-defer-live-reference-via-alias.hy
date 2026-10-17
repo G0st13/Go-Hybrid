@@ -17,7 +17,7 @@
 //   [S2] the deferred `report(alias)` — a use through the alias, AFTER [S1].
 //
 // ---- Expected verdict ----
-// EXPECTED-VERDICT: REJECT
+// EXPECTED-VERDICT: REJECT A1b
 //   REJECT — A1b/HYB-E3003. Keying the check on the moved NAME alone misses
 //   this shape; it must key on the alias/may-share component.
 //

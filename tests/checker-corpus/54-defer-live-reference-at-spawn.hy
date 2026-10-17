@@ -19,7 +19,7 @@
 //   [S2] the deferred `report(shared)` — a use AFTER that transfer.
 //
 // ---- Expected verdict ----
-// EXPECTED-VERDICT: REJECT
+// EXPECTED-VERDICT: REJECT A1b
 //   REJECT — A1b/HYB-E3003 ("moved into a task while a live `defer` still
 //   reads it"). Accepting this program is a P0: the emitted Go runs
 //   `defer report(shared)` and `go worker(shared)` in the same function and
