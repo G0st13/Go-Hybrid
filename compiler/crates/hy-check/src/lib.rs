@@ -811,6 +811,7 @@ fn check_fn(ck: &mut Checker<'_>, f: &FnDecl) {
                 &st,
                 outer_depth,
                 &flat.stmts[for_idx..=loop_end],
+                &flat.events,
                 lbody,
                 &pre_moved,
                 &mut reported_backedge,

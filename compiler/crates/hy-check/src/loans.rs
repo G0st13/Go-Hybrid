@@ -2147,6 +2147,11 @@ impl<'a> Checker<'a> {
                     // mutation set (or clears it for non-closure values)
                     st.closure_mutates.remove(name);
                     self.record_closure_mutations(st, name, v);
+                } else {
+                    let root = t.root();
+                    if !root.is_empty() && self.binding_may_share(st, root) {
+                        self.record_may_share(st, root, v);
+                    }
                 }
             }
         } else if values.len() == 1 && targets.len() > 1 {
