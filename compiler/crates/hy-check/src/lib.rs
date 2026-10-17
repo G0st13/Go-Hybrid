@@ -597,7 +597,18 @@ fn check_fn(ck: &mut Checker<'_>, f: &FnDecl) {
             // #415: a deferred call runs at function EXIT, so every binding
             // its arguments name is read after any later `move` in this body.
             // Remember those roots; the spawn/send arms check them.
+            //
+            // A `move` written INSIDE the deferred call (`defer f(move x)`)
+            // must also freeze its operand right here. Both behaviours live in
+            // ONE arm on purpose: a second `Stmt::Defer` arm would be
+            // unreachable, and whichever came second would silently lose its
+            // effect — this happened once during a merge, so keep them together.
             Stmt::Defer { call, .. } => {
+                ck.mark_move_in_value(
+                    &mut st,
+                    call,
+                    format!("the deferred call `defer {}`", call.render()),
+                );
                 let mut roots = Vec::new();
                 crate::model::collect_ref_roots(call, &mut roots);
                 for r in roots {
@@ -867,14 +878,6 @@ fn check_fn(ck: &mut Checker<'_>, f: &FnDecl) {
                     &mut st,
                     expr,
                     format!("the expression `{}`", expr.render()),
-                );
-            }
-
-            Stmt::Defer { call, .. } => {
-                ck.mark_move_in_value(
-                    &mut st,
-                    call,
-                    format!("the deferred call `defer {}`", call.render()),
                 );
             }
 
