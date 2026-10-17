@@ -271,11 +271,42 @@ impl FnState {
                 }
             }
         }
+        // Bindings declared INSIDE the block being popped. Their may_share
+        // edges die with the scope, but an edge between two OUTER bindings
+        // established inside the block must survive it.
+        let inner_names: std::collections::HashSet<String> = self
+            .scopes
+            .last()
+            .map(|s| s.keys().cloned().collect())
+            .unwrap_or_default();
+
         self.scopes.pop();
         if let Some(outer_aliases) = self.alias_scopes.pop() {
             self.aliases = outer_aliases;
-            if let Some(outer_share) = self.share_scopes.pop() {
-                self.may_share = outer_share;
+            let inner_share = std::mem::take(&mut self.may_share);
+            match self.share_scopes.pop() {
+                Some(outer_share) => {
+                    // Restore the outer edges AND keep every inner edge whose
+                    // two endpoints both outlive the block. Dropping those let
+                    // `if cond { alias = shared }` launder the alias, so a
+                    // later `move alias` did not freeze `shared` (the caller
+                    // kept writing the map the task was given).
+                    let mut merged = outer_share;
+                    for (binding, peers) in inner_share {
+                        if inner_names.contains(&binding) {
+                            continue;
+                        }
+                        for peer in peers {
+                            if peer == binding || inner_names.contains(&peer) {
+                                continue;
+                            }
+                            merged.entry(binding.clone()).or_default().insert(peer);
+                        }
+                    }
+                    merged.retain(|_, peers| !peers.is_empty());
+                    self.may_share = merged;
+                }
+                None => self.may_share = inner_share,
             }
             for (root, mv) in inner_root_moves {
                 if let Some(br) = self.env_lookup_mut(&root) {

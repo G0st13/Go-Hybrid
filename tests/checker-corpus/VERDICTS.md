@@ -592,7 +592,6 @@ composite-`const` locals, select-receive names and match bindings stay
 outside this registration (the same Go error family, tracked separately);
 unread `for ... in` bindings are handled at emission (issue #139).
 
-<<<<<<< HEAD
 ## Additive corpus registration — 2026-10-17: shadowed predeclared types (#326)
 
 One case derived from issue #326 before running this fixture. It pins the
@@ -611,7 +610,6 @@ ACCEPT 13 · ACCEPT-MANAGED 2 · REJECT 36** (harness recompute: 51/51
 verdict agreement; tripwire 2/51 = 3.9% verdict-level, 3/51 = 5.9%
 as-written — not fired).
 
-=======
 ## Additive corpus registration — 2026-10-17: 3-argument slice `make` (#353)
 
 One case added WITH its fix: `make([]T, len, cap)` is valid Go, was
@@ -630,4 +628,26 @@ With this addition the corpus on disk is **51 programs: ACCEPT 13 ·
 ACCEPT-MANAGED 2 · REJECT 36** (recomputed from the files'
 `EXPECTED-VERDICT` markers; #50 carries its registration with its own fix
 PR).
->>>>>>> main
+## Additive corpus registration — 2026-10-17: block-scoped `may_share` edges
+
+`scope_pop` restored `may_share` from the snapshot taken at `scope_push`, which
+discarded every edge created inside the block — including edges between two
+bindings declared **outside** the block and both outliving it. An assignment
+inside an `if` therefore laundered the alias: `move alias` did not freeze the
+source, and the emitted Go wrote one map from two goroutines.
+
+Nothing is shadowed in #53 and there are no composites: the edge is the only
+difference from the rejecting form with the assignment at function level.
+
+| # | program | verdict | rule | diagnostic | rationale |
+|---|---------|---------|------|------------|-----------|
+| 53 | 53-block-scoped-alias-at-spawn | REJECT | A1b (alias-form) | `HYB-E3003` | `alias = shared` inside an `if`, then `task worker(move alias)`: the edge must survive the block, otherwise the post-spawn write to `shared` races |
+
+With this addition the corpus on disk is **53 programs: ACCEPT 13 ·
+ACCEPT-MANAGED 2 · REJECT 38** (recomputed by running every file through
+`hyb check --json`; #53 carries its registration with its own fix PR).
+
+*Housekeeping in the same edit: the file carried an unresolved merge-conflict
+block (`<<<<<<< HEAD` / `=======` / `>>>>>>> main`) around the #52 and #51
+registrations. Both sides are kept, in order; only the markers are removed.*
+
