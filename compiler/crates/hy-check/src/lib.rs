@@ -687,6 +687,37 @@ fn check_fn(ck: &mut Checker<'_>, f: &FnDecl) {
                         targets.as_deref(),
                     );
                 }
+
+                // #415: a live `defer` in this body still reads its argument
+                // at function exit — after this send — so transferring one of
+                // those bindings here races the deferred call.
+                if *is_move {
+                    let moved = crate::model::move_operand_ident(value).or_else(|| match value {
+                        Expr::Ident { name, .. } => Some(name.clone()),
+                        _ => None,
+                    });
+                    if let Some(n) = moved {
+                        let root = crate::freeze::resolve_alias(&st, &n);
+                        if st.deferred_refs.contains(&n) || st.deferred_refs.contains(&root) {
+                            ck.diags.push(
+                                Diagnostic::error(
+                                    "HYB-E3003",
+                                    ck.path.clone(),
+                                    *span,
+                                    format!(
+                                        "`{}` is moved into a channel while a live `defer` still reads it",
+                                        n
+                                    ),
+                                )
+                                .with_rule("A1b")
+                                .with_notes(vec![
+                                    "the deferred call runs at function exit, after ownership left this task (O5.2)".to_string(),
+                                    "compute what the deferred call needs BEFORE the move, or drop the `defer`".to_string(),
+                                ]),
+                            );
+                        }
+                    }
+                }
             }
 
             // Loop variables: fresh bindings per iteration shape.

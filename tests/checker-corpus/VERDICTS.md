@@ -643,8 +643,9 @@ call then read the value the spawned task already owned.
 | # | program | verdict | rule | diagnostic | rationale |
 |---|---------|---------|------|------------|-----------|
 | 54 | 54-defer-live-reference-at-spawn | REJECT | A1b | `HYB-E3003` | `defer report(shared)` followed by `task worker(move shared)`: the deferred read happens after the transfer |
+| 55 | 55-defer-live-reference-at-send | REJECT | A1b | `HYB-E3003` | the send-side twin of 54: `ch <- move shared` transfers ownership, and the deferred call reads the map at function exit |
 
-With this addition the corpus on disk is **53 programs: ACCEPT 13 ·
-ACCEPT-MANAGED 2 · REJECT 38** (recomputed by running every file through
-`hyb check --json`). #54 is numbered to avoid colliding with the #53 slot
+With this addition the corpus on disk is **54 programs: ACCEPT 13 ·
+ACCEPT-MANAGED 2 · REJECT 39** (recomputed by running every file through
+`hyb check --json`). #54/#55 are numbered to avoid colliding with the #53 slot
 claimed by the block-scope fix in a parallel PR.

@@ -74,6 +74,32 @@ fn deferred_closure_capture_still_rejects_issue_415() {
 }
 
 #[test]
+fn deferred_argument_moved_into_channel_rejects_e3003_issue_415() {
+    // The send-side twin: `ch <- move shared` transfers ownership, and the
+    // deferred call still reads the map at function exit.
+    let r = check(
+        "fn report(m map[string]int) int {\n\
+           return m[\"task\"]\n\
+         }\n\
+         fn main() {\n\
+           shared := map[string]int{}\n\
+           ch := make(chan map[string]int, 1)\n\
+           defer report(shared)\n\
+           ch <- move shared\n\
+         }",
+    );
+    assert_eq!(r.verdict, Verdict::Reject, "{:?}", r.diagnostics);
+    assert_eq!(first_error_rule(&r).as_deref(), Some("A1b"));
+    assert!(
+        r.diagnostics
+            .iter()
+            .any(|d| d.code == "HYB-E3003" && d.message.contains("defer")),
+        "expected the defer-specific HYB-E3003, got {:?}",
+        r.diagnostics
+    );
+}
+
+#[test]
 fn deferred_argument_for_another_map_stays_accept_issue_415() {
     // Positive control: the deferred call reads a DIFFERENT map, so moving
     // `shared` is fine. The check must key on the named binding, not on the
