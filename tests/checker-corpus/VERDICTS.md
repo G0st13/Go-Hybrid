@@ -631,3 +631,20 @@ ACCEPT-MANAGED 2 · REJECT 36** (recomputed from the files'
 `EXPECTED-VERDICT` markers; #50 carries its registration with its own fix
 PR).
 >>>>>>> main
+
+
+## Additive corpus registration — 2026-10-17: deferred calls keep their arguments live (#415)
+
+`defer` evaluates its arguments at the defer site but **calls at function
+exit**. The statement walk saw the argument as an ordinary read at the defer
+statement, so a later `move` of the same binding looked legal — and the deferred
+call then read the value the spawned task already owned.
+
+| # | program | verdict | rule | diagnostic | rationale |
+|---|---------|---------|------|------------|-----------|
+| 54 | 54-defer-live-reference-at-spawn | REJECT | A1b | `HYB-E3003` | `defer report(shared)` followed by `task worker(move shared)`: the deferred read happens after the transfer |
+
+With this addition the corpus on disk is **53 programs: ACCEPT 13 ·
+ACCEPT-MANAGED 2 · REJECT 38** (recomputed by running every file through
+`hyb check --json`). #54 is numbered to avoid colliding with the #53 slot
+claimed by the block-scope fix in a parallel PR.
