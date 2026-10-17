@@ -649,3 +649,4 @@ With this addition the corpus on disk is **54 programs: ACCEPT 13 ·
 ACCEPT-MANAGED 2 · REJECT 39** (recomputed by running every file through
 `hyb check --json`). #54/#55 are numbered to avoid colliding with the #53 slot
 claimed by the block-scope fix in a parallel PR.
+| 56 | 56-defer-live-reference-via-alias | REJECT | A1b | `HYB-E3003` | the deferred call names the ALIAS while the move transfers the ORIGIN — the check must key on the alias / may-share component, not the moved name |

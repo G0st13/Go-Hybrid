@@ -629,16 +629,15 @@ fn check_fn(ck: &mut Checker<'_>, f: &FnDecl) {
                 // those bindings here races the deferred call.
                 for a in args {
                     if let Some(n) = crate::model::move_operand_ident(&a.value) {
-                        let root = crate::freeze::resolve_alias(&st, &n);
-                        if st.deferred_refs.contains(&n) || st.deferred_refs.contains(&root) {
+                        if let Some(deferred) = ck.deferred_conflict(&st, &n) {
                             ck.diags.push(
                                 Diagnostic::error(
                                     "HYB-E3003",
                                     ck.path.clone(),
                                     *span,
                                     format!(
-                                        "`{}` is moved into a task while a live `defer` still reads it",
-                                        n
+                                        "`{}` is moved into a task while a live `defer` still reads `{}`",
+                                        n, deferred
                                     ),
                                 )
                                 .with_rule("A1b")
@@ -697,16 +696,15 @@ fn check_fn(ck: &mut Checker<'_>, f: &FnDecl) {
                         _ => None,
                     });
                     if let Some(n) = moved {
-                        let root = crate::freeze::resolve_alias(&st, &n);
-                        if st.deferred_refs.contains(&n) || st.deferred_refs.contains(&root) {
+                        if let Some(deferred) = ck.deferred_conflict(&st, &n) {
                             ck.diags.push(
                                 Diagnostic::error(
                                     "HYB-E3003",
                                     ck.path.clone(),
                                     *span,
                                     format!(
-                                        "`{}` is moved into a channel while a live `defer` still reads it",
-                                        n
+                                        "`{}` is moved into a channel while a live `defer` still reads `{}`",
+                                        n, deferred
                                     ),
                                 )
                                 .with_rule("A1b")
